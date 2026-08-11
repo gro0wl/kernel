@@ -1,0 +1,119 @@
+name: Build Redmi 10 KernelSU
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            bc bison build-essential clang-14 device-tree-compiler \
+            flex gcc-aarch64-linux-gnu git libelf-dev libncurses-dev \
+            libssl-dev lld-14 llvm-14 python3 zip
+
+      - name: Configure and build kernel
+        env:
+          ARCH: arm64
+          CROSS_COMPILE: aarch64-linux-gnu-
+          LLVM_AR: llvm-ar-14
+          LLVM_NM: llvm-nm-14
+          OUT_DIR: ${{ github.workspace }}/out
+        run: |
+          set -euxo pipefail
+
+          make O="$OUT_DIR" ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" \
+            CC=clang-14 LD=ld.lld-14 LLVM_IAS=0 \
+            LLVM_AR=llvm-ar-14 LLVM_NM=llvm-nm-14 selene_defconfig
+
+          ./scripts/config --file "$OUT_DIR/.config" \
+            --enable CONFIG_MODULES \
+            --disable CONFIG_KPROBES \
+            --disable CONFIG_KRETPROBES \
+            --enable CONFIG_EXT4_FS \
+            --enable CONFIG_KSU \
+            --enable CONFIG_KSU_MANUAL_HOOK
+          make O="$OUT_DIR" ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" \
+            CC=clang-14 LD=ld.lld-14 LLVM_IAS=0 \
+            LLVM_AR=llvm-ar-14 LLVM_NM=llvm-nm-14 olddefconfig
+
+          grep -q '^CONFIG_KSU=y$' "$OUT_DIR/.config"
+          make -j"$(nproc)" O="$OUT_DIR" ARCH="$ARCH" \
+            CROSS_COMPILE="$CROSS_COMPILE" CC=clang-14 LD=ld.lld-14 \
+            LLVM_IAS=0 LLVM_AR=llvm-ar-14 LLVM_NM=llvm-nm-14 Image.gz-dtb
+
+          test -s "$OUT_DIR/arch/arm64/boot/Image.gz-dtb"
+
+      - name: Create AnyKernel3 flashable ZIP
+        env:
+          BUILD_TAG: kernelsu-${{ github.run_id }}-${{ github.run_attempt }}
+          ZIP_NAME: photon-selene-${{ github.run_id }}.zip
+        run: |
+          set -euxo pipefail
+
+          git clone --depth 1 https://github.com/osm0sis/AnyKernel3.git packaging
+          rm -rf packaging/.git
+          cp out/arch/arm64/boot/Image.gz-dtb packaging/Image.gz-dtb
+
+          cat > packaging/anykernel.sh <<'EOF'
+          properties() { '
+          do.devicecheck=1
+          do.cleanup=1
+          do.cleanuponabort=1
+          device.name1=selene
+          device.name2=selenes
+          device.name3=eos
+          '; }
+
+          boot_attributes() {
+          set_perm_recursive 0 0 755 644 $RAMDISK/*;
+          set_perm_recursive 0 0 750 750 $RAMDISK/init* $RAMDISK/sbin;
+          }
+
+          BLOCK=/dev/block/by-name/boot;
+          IS_SLOT_DEVICE=1;
+          RAMDISK_COMPRESSION=auto;
+          PATCH_VBMETA_FLAG=auto;
+
+          . tools/ak3-core.sh;
+          dump_boot;
+          write_boot;
+          EOF
+
+          printf 'KernelSU build: %s\nSource: %s\n' "$BUILD_TAG" \
+            "${GITHUB_SHA}" > packaging/build-info.txt
+
+          (cd packaging && zip -r9 "$GITHUB_WORKSPACE/$ZIP_NAME" . \
+            -x '.git/*' '*.md' 'README*')
+          test -s "$ZIP_NAME"
+          unzip -l "$ZIP_NAME" | grep -E 'Image.gz-dtb|anykernel.sh|tools/ak3-core.sh'
+
+      - name: Publish new GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: kernelsu-${{ github.run_id }}-${{ github.run_attempt }}
+          name: Redmi 10 KernelSU ${{ github.run_id }}
+          body: |
+            Flashable AnyKernel3 ZIP for Redmi 10 (selene).
+
+            Source commit: `${{ github.sha }}`
+            KernelSU Next: v3.2.0-legacy
+            SUSFS: not included
+          prerelease: true
+          generate_release_notes: false
+          files: photon-selene-${{ github.run_id }}.zip
