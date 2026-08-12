@@ -1062,10 +1062,19 @@ void charger_manager_set_prop_system_temp_level(int temp_level)
 {
 	int thermal_icl_ua = 0;
 	bool is_cn = false;
+	int usb_type = POWER_SUPPLY_TYPE_USB_DCP;
 
-	if (pinfo == NULL || pinfo->usb_psy == NULL ||
-	    pinfo->usb_psy->desc == NULL)
-		return ;
+	if (pinfo == NULL)
+		return;
+
+	/*
+	 * The battery/thermal driver can call this before the USB power
+	 * supply has finished registering.  Do not dereference usb_psy here,
+	 * but keep the normal DCP thermal profile so the input-current limit
+	 * is initialized and charging is not left disabled.
+	 */
+	if (pinfo->usb_psy != NULL && pinfo->usb_psy->desc != NULL)
+		usb_type = pinfo->usb_psy->desc->type;
 	pcba_to_thermal = get_huaqin_pcba_config();
 #if defined(CONFIG_TARGET_PRODUCT_LANCELOTCOMMON)
 	if (pcba_to_thermal == PCBA_J19_MP_CN)
@@ -1084,7 +1093,7 @@ void charger_manager_set_prop_system_temp_level(int temp_level)
 		pinfo->system_temp_level = temp_level;
 
 	if (is_cn == true) {
-		switch (pinfo->usb_psy->desc->type) {
+		switch (usb_type) {
 		case POWER_SUPPLY_TYPE_USB_HVDCP:
 			thermal_icl_ua = thermal_mitigation_qc2_cn[pinfo->system_temp_level];
 			break;
@@ -1097,7 +1106,7 @@ void charger_manager_set_prop_system_temp_level(int temp_level)
 			break;
 		}
 	} else {
-		switch (pinfo->usb_psy->desc->type) {
+		switch (usb_type) {
 		case POWER_SUPPLY_TYPE_USB_HVDCP:
 			thermal_icl_ua = thermal_mitigation_qc2[pinfo->system_temp_level];
 			break;
@@ -1119,7 +1128,7 @@ void charger_manager_set_prop_system_temp_level(int temp_level)
 		thermal_is_500 = false;
 	}
 	pr_err("%s, battery_temp: %d system_temp_level:%d thermal_icl_ua:%d usb_type:%d\n", __func__,pinfo->battery_temp,
-			pinfo->system_temp_level, thermal_icl_ua, pinfo->usb_psy->desc->type);
+			pinfo->system_temp_level, thermal_icl_ua, usb_type);
 
 	// pr_err("%s, system_temp_level:%d thermal_icl_ua:%d \n", __func__,
 	// 		pinfo->system_temp_level, thermal_icl_ua);
