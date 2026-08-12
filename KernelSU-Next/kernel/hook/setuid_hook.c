@@ -38,10 +38,12 @@ static void ksu_install_manager_fd_tw_func(struct callback_head *cb)
 int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid)
 {
     // we rely on the fact that zygote always call setresuid(3) with same uids
-    uid_t new_uid = ruid;
+    /* Android commonly uses setresuid(-1, uid, uid).  The effective UID is
+     * the identity that must be checked for the Manager process. */
+    uid_t new_uid = euid;
     uid_t old_uid = current_uid().val;
 
-    pr_debug("handle_setresuid from %d to %d\n", old_uid, new_uid);
+    pr_info("handle_setresuid from %d to %d/%d/%d\n", old_uid, ruid, euid, suid);
 
     if (unlikely(is_uid_manager(new_uid))) {
 
