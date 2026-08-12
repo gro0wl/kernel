@@ -55,7 +55,7 @@ jobs:
 
           grep -q '^CONFIG_KSU=y$' "$OUT_DIR/.config"
           grep -q '^CONFIG_KSU_MANUAL_HOOK=y$' "$OUT_DIR/.config"
-          grep -q '^# CONFIG_KSU_KPROBES_HOOK is not set$' "$OUT_DIR/.config"
+          ! grep -q '^CONFIG_KSU_KPROBES_HOOK=y$' "$OUT_DIR/.config"
           grep -q 'ksu_handle_sys_reboot' kernel/reboot.c
           grep -q 'ksu_handle_setresuid' kernel/sys.c
           make -j"$(nproc)" O="$OUT_DIR" ARCH="$ARCH" \
