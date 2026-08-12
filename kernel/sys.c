@@ -43,6 +43,12 @@
 #include <linux/version.h>
 #include <linux/ctype.h>
 #include <linux/mm.h>
+
+#ifdef CONFIG_KSU_MANUAL_HOOK
+/* KernelSU legacy hook: the manager must be recognized before commit_creds()
+ * so its seccomp filter can be amended before the reboot supercall. */
+extern int ksu_handle_setresuid(uid_t ruid, uid_t euid, uid_t suid);
+#endif
 #include <linux/mempolicy.h>
 
 #include <linux/compat.h>
@@ -655,6 +661,10 @@ SYSCALL_DEFINE3(setresuid, uid_t, ruid, uid_t, euid, uid_t, suid)
 	retval = security_task_fix_setuid(new, old, LSM_SETID_RES);
 	if (retval < 0)
 		goto error;
+
+#ifdef CONFIG_KSU_MANUAL_HOOK
+	ksu_handle_setresuid(ruid, euid, suid);
+#endif
 
 	return commit_creds(new);
 

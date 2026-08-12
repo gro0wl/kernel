@@ -54,6 +54,10 @@ jobs:
             LLVM_AR=llvm-ar-14 LLVM_NM=llvm-nm-14 olddefconfig
 
           grep -q '^CONFIG_KSU=y$' "$OUT_DIR/.config"
+          grep -q '^CONFIG_KSU_MANUAL_HOOK=y$' "$OUT_DIR/.config"
+          grep -q '^# CONFIG_KSU_KPROBES_HOOK is not set$' "$OUT_DIR/.config"
+          grep -q 'ksu_handle_sys_reboot' kernel/reboot.c
+          grep -q 'ksu_handle_setresuid' kernel/sys.c
           make -j"$(nproc)" O="$OUT_DIR" ARCH="$ARCH" \
             CROSS_COMPILE="$CROSS_COMPILE" CC=clang-14 LD=ld.lld-14 \
             LLVM_IAS=0 LLVM_AR=llvm-ar-14 LLVM_NM=llvm-nm-14 Image.gz-dtb
@@ -113,7 +117,7 @@ jobs:
             Flashable AnyKernel3 ZIP for Redmi 10 (selene).
 
             Source commit: `${{ github.sha }}`
-            KernelSU Next: v3.2.0-legacy
+            KernelSU Next: legacy/manual-hook backend (Android 13, kernel 4.14)
             SUSFS: not included
           prerelease: true
           generate_release_notes: false
