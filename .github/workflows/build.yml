@@ -54,14 +54,28 @@ jobs:
             CC=clang-14 LD=ld.lld-14 LLVM_IAS=0 \
             LLVM_AR=llvm-ar-14 LLVM_NM=llvm-nm-14 olddefconfig
 
+          make -j"$(nproc)" O="$OUT_DIR" ARCH="$ARCH" \
+            CROSS_COMPILE="$CROSS_COMPILE" CC=clang-14 LD=ld.lld-14 \
+            LLVM_IAS=0 LLVM_AR=llvm-ar-14 LLVM_NM=llvm-nm-14 \
+            arch/arm64/boot/dts/mediatek/mt6768.dtb \
+            arch/arm64/boot/dts/mediatek/selene.dtbo
+
+          fdtoverlay -i "$OUT_DIR/arch/arm64/boot/dts/mediatek/mt6768.dtb" \
+            -o "$OUT_DIR/arch/arm64/boot/dts/mediatek/selene-merged.dtb" \
+            "$OUT_DIR/arch/arm64/boot/dts/mediatek/selene.dtbo"
+
           grep -q '^CONFIG_KSU=y$' "$OUT_DIR/.config"
           grep -q '^CONFIG_KSU_TAMPER_SYSCALL_TABLE=y$' "$OUT_DIR/.config"
           ! grep -q '^CONFIG_KSU_MANUAL_HOOK=y$' "$OUT_DIR/.config"
           make -j"$(nproc)" O="$OUT_DIR" ARCH="$ARCH" \
             CROSS_COMPILE="$CROSS_COMPILE" CC=clang-14 LD=ld.lld-14 \
-            LLVM_IAS=0 LLVM_AR=llvm-ar-14 LLVM_NM=llvm-nm-14 Image.gz-dtb
+            LLVM_IAS=0 LLVM_AR=llvm-ar-14 LLVM_NM=llvm-nm-14 Image.gz
 
+          cat "$OUT_DIR/arch/arm64/boot/Image.gz" \
+            "$OUT_DIR/arch/arm64/boot/dts/mediatek/selene-merged.dtb" \
+            > "$OUT_DIR/arch/arm64/boot/Image.gz-dtb"
           test -s "$OUT_DIR/arch/arm64/boot/Image.gz-dtb"
+          strings "$OUT_DIR/arch/arm64/boot/Image.gz-dtb" | grep -q 'type_c_port0'
 
       - name: Create AnyKernel3 flashable ZIP
         env:
