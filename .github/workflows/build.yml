@@ -56,9 +56,7 @@ jobs:
 
           make -j"$(nproc)" O="$OUT_DIR" ARCH="$ARCH" \
             CROSS_COMPILE="$CROSS_COMPILE" CC=clang-14 LD=ld.lld-14 \
-            LLVM_IAS=0 LLVM_AR=llvm-ar-14 LLVM_NM=llvm-nm-14 \
-            arch/arm64/boot/dts/mediatek/mt6768.dtb \
-            arch/arm64/boot/dts/mediatek/selene.dtbo
+            LLVM_IAS=0 LLVM_AR=llvm-ar-14 LLVM_NM=llvm-nm-14 dtbs
 
           fdtoverlay -i "$OUT_DIR/arch/arm64/boot/dts/mediatek/mt6768.dtb" \
             -o "$OUT_DIR/arch/arm64/boot/dts/mediatek/selene-merged.dtb" \
